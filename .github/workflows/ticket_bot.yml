@@ -2,9 +2,7 @@ name: Bucht der Träumer Ticket Monitor
 
 on:
   schedule:
-    # Läuft alle 10 Minuten (UTC-Zeit, GitHub hat manchmal 2-5 Min. Versatz)
     - cron: '*/10 * * * *'
-  # Ermöglicht manuelles Auslösen zum Testen im GitHub-Tab "Actions"
   workflow_dispatch:
 
 jobs:
@@ -21,7 +19,9 @@ jobs:
           python-version: '3.12'
 
       - name: Abhängigkeiten installieren
-        run: pip install requests beautifulsoup4
+        run: |
+          pip install requests playwright
+          playwright install chromium
 
       - name: TixforGigs prüfen
         env:
