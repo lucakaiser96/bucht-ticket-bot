@@ -1,20 +1,11 @@
 import os
 import sys
 import requests
-from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 URL = "https://www.tixforgigs.com/de-DE/Event/75574/bucht-der-traumer-2027-helenesee-frankfurt-oder"
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "de-DE,de;q=0.9",
-}
+BOT_TOKEN = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+CHAT_ID = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
 
 
 def send_telegram(message: str) -> None:
@@ -34,35 +25,46 @@ def send_telegram(message: str) -> None:
 
 
 def check_tickets() -> None:
-    resp = requests.get(URL, headers=HEADERS, timeout=20)
-    resp.raise_for_status()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            locale="de-DE",
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+        )
+        page = context.new_page()
+        page.goto(URL, wait_until="networkidle", timeout=45000)
+        page.wait_for_timeout(3000)
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-    full_text = soup.get_text(" ", strip=True)
-    full_text_lower = full_text.lower()
+        # Liest nur den tatsächlich sichtbaren Text (ignoriert Skripte/Code)
+        visible_text = page.inner_text("body")
+        browser.close()
 
+    text_lower = visible_text.lower()
     alerts = []
 
-    # Check 1: Offizieller Wiederverkauf-Bereich ist aktiv
-    if "wiederverkauf" in full_text_lower:
-        alerts.append("Der Bereich 'Wiederverkauf' ist auf der Seite aufgetaucht!")
+    # Check 1: Offizieller Wiederverkauf-Bereich ist sichtbar
+    if "wiederverkauf" in text_lower:
+        alerts.append("Der Bereich 'Wiederverkauf' ist auf der Seite sichtbar!")
 
-    # Check 2: Eines der 4 Festivaltickets ist nicht mehr "Ausverkauft"
-    # Wir schneiden gezielt den Bereich zwischen "Stammgast Special" und "Parken" aus
-    start_idx = full_text_lower.find("stammgast special")
-    end_idx = full_text_lower.find("parken", start_idx) if start_idx != -1 else -1
+    # Check 2: Eines der 4 Festivaltickets ist nicht mehr 'Ausverkauft'
+    start_idx = text_lower.find("stammgast special")
+    end_idx = text_lower.find("parken", start_idx) if start_idx != -1 else -1
 
     if start_idx != -1 and end_idx != -1:
-        festival_section = full_text_lower[start_idx:end_idx]
+        # 50 Zeichen vor 'stammgast special' starten, damit das erste 'Ausverkauft' mitgezählt wird
+        festival_section = text_lower[max(0, start_idx - 50) : end_idx]
         sold_out_count = festival_section.count("ausverkauft")
         print(f"Aktueller Status: {sold_out_count}/4 Festivalticket-Phasen 'Ausverkauft'.")
-        # Hinweis: Vor 'Stammgast Special' steht das erste 'Ausverkauft', daher zählen wir hier 3 innerhalb des Blocks
-        if sold_out_count < 3:
+        if sold_out_count < 4:
             alerts.append(
-                f"Mindestens eine reguläre Festivalticket-Phase ist nicht mehr ausverkauft!"
+                "Mindestens eine reguläre Festivalticket-Phase ist nicht mehr ausverkauft!"
             )
     else:
-        print("Hinweis: Seitenstruktur konnte nicht exakt eingegrenzt werden.")
+        print("Hinweis: Seitenstruktur konnte auch mit Browser nicht eingegrenzt werden.")
 
     if alerts:
         msg = (
