@@ -1,0 +1,30 @@
+name: Bucht der Träumer Ticket Monitor
+
+on:
+  schedule:
+    # Läuft alle 10 Minuten (UTC-Zeit, GitHub hat manchmal 2-5 Min. Versatz)
+    - cron: '*/10 * * * *'
+  # Ermöglicht manuelles Auslösen zum Testen im GitHub-Tab "Actions"
+  workflow_dispatch:
+
+jobs:
+  check-tickets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Abhängigkeiten installieren
+        run: pip install requests beautifulsoup4
+
+      - name: TixforGigs prüfen
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python check_tickets.py
