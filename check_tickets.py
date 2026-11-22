@@ -59,7 +59,7 @@ def check_tickets() -> None:
         festival_section = text_lower[max(0, start_idx - 50) : end_idx]
         sold_out_count = festival_section.count("ausverkauft")
         print(f"Aktueller Status: {sold_out_count}/4 Festivalticket-Phasen 'Ausverkauft'.")
-        if sold_out_count < 99:
+        if sold_out_count < 4:
             alerts.append(
                 "Mindestens eine reguläre Festivalticket-Phase ist nicht mehr ausverkauft!"
             )
