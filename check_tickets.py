@@ -42,32 +42,34 @@ def check_tickets() -> None:
         page.wait_for_timeout(2000)
 
         visible_text = page.inner_text("body")
-        browser.close()
+        text_lower = visible_text.lower()
+        alerts = []
 
-    text_lower = visible_text.lower()
-    alerts = []
+        # Check 1: Offizieller Wiederverkauf / Resale sichtbar
+        if "wiederverkauf" in text_lower or "resale" in text_lower:
+            alerts.append("Der Bereich 'Wiederverkauf' / 'Resale' ist auf der Seite sichtbar!")
 
-    # Check 1: Offizieller Wiederverkauf / Resale sichtbar
-    if "wiederverkauf" in text_lower or "resale" in text_lower:
-        alerts.append("Der Bereich 'Wiederverkauf' / 'Resale' ist auf der Seite sichtbar!")
+        # Check 2: Prüfen, ob einer der ersten 5 '+'-Buttons (Festivaltickets) aktiv/klickbar ist
+        add_buttons = page.locator("button:has-text('add')")
+        total_buttons = add_buttons.count()
+        festival_buttons_to_check = min(5, total_buttons)
 
-    # Check 2: Eines der 5 Festivaltickets ist nicht mehr ausverkauft
-    start_idx = text_lower.find("reduzini")
-    end_idx = text_lower.find("parken", start_idx) if start_idx != -1 else -1
+        available_count = 0
+        for i in range(festival_buttons_to_check):
+            if add_buttons.nth(i).is_enabled():
+                available_count += 1
 
-    if start_idx != -1 and end_idx != -1:
-        festival_section = text_lower[start_idx:end_idx]
-        sold_out_count = festival_section.count("ausverkauft") + festival_section.count("sold out")
-        print(f"Aktueller Status: {sold_out_count}/5 Festivaltickets ausverkauft.")
-        if sold_out_count < 5:
-            print("--- GELESENER TEXTBLOCK ---")
-            print(festival_section)
-            print("---------------------------")
+        print(
+            f"Aktueller Status: {available_count}/{festival_buttons_to_check} "
+            f"Festivaltickets kaufbar (gesamt {total_buttons} Plus-Buttons gefunden)."
+        )
+
+        if available_count > 0:
             alerts.append(
-                f"Mindestens ein Festivalticket ist nicht mehr ausverkauft ({sold_out_count}/5 ausverkauft)!"
+                f"Mindestens ein Festivalticket ist kaufbar ({available_count} aktive Plus-Buttons)!"
             )
-    else:
-        print("Hinweis: Seitenstruktur konnte nicht eingegrenzt werden.")
+
+        browser.close()
 
     if alerts:
         msg = (
