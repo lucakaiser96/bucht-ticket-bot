@@ -3,7 +3,7 @@ import sys
 import requests
 from playwright.sync_api import sync_playwright
 
-URL = "https://www.tixforgigs.com/de-DE/Event/75574/bucht-der-traumer-2027-helenesee-frankfurt-oder"
+URL = "https://tixforgigs.shop/de/events/75574"
 BOT_TOKEN = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
 CHAT_ID = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
 
@@ -37,9 +37,10 @@ def check_tickets() -> None:
         )
         page = context.new_page()
         page.goto(URL, wait_until="networkidle", timeout=45000)
-        page.wait_for_timeout(3000)
+        # Warten, bis die Ticket-Karten im neuen Shop vollständig gerendert sind
+        page.wait_for_selector("text=Stammgast Special", timeout=30000)
+        page.wait_for_timeout(2000)
 
-        # Liest nur den tatsächlich sichtbaren Text (ignoriert Skripte/Code)
         visible_text = page.inner_text("body")
         browser.close()
 
@@ -50,21 +51,20 @@ def check_tickets() -> None:
     if "wiederverkauf" in text_lower:
         alerts.append("Der Bereich 'Wiederverkauf' ist auf der Seite sichtbar!")
 
-    # Check 2: Eines der 4 Festivaltickets ist nicht mehr 'Ausverkauft'
-    start_idx = text_lower.find("stammgast special")
+    # Check 2: Eines der 5 Festivaltickets (Reduzini, Stammgast Special, Phase 1-3) ist nicht mehr 'AUSVERKAUFT'
+    start_idx = text_lower.find("reduzini")
     end_idx = text_lower.find("parken", start_idx) if start_idx != -1 else -1
 
     if start_idx != -1 and end_idx != -1:
-        # 50 Zeichen vor 'stammgast special' starten, damit das erste 'Ausverkauft' mitgezählt wird
-        festival_section = text_lower[max(0, start_idx - 50) : end_idx]
+        festival_section = text_lower[start_idx:end_idx]
         sold_out_count = festival_section.count("ausverkauft")
-        print(f"Aktueller Status: {sold_out_count}/4 Festivalticket-Phasen 'Ausverkauft'.")
-        if sold_out_count < 4:
+        print(f"Aktueller Status: {sold_out_count}/5 Festivaltickets 'AUSVERKAUFT'.")
+        if sold_out_count < 5:
             alerts.append(
-                "Mindestens eine reguläre Festivalticket-Phase ist nicht mehr ausverkauft!"
+                f"Mindestens ein Festivalticket ist nicht mehr ausverkauft ({sold_out_count}/5 ausverkauft)!"
             )
     else:
-        print("Hinweis: Seitenstruktur konnte auch mit Browser nicht eingegrenzt werden.")
+        print("Hinweis: Seitenstruktur konnte nicht eingegrenzt werden.")
 
     if alerts:
         msg = (
