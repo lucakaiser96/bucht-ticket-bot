@@ -29,6 +29,7 @@ def check_tickets() -> None:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             locale="de-DE",
+            extra_http_headers={"Accept-Language": "de-DE,de;q=0.9"},
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -37,7 +38,6 @@ def check_tickets() -> None:
         )
         page = context.new_page()
         page.goto(URL, wait_until="networkidle", timeout=45000)
-        # Warten, bis die Ticket-Karten im neuen Shop vollständig gerendert sind
         page.wait_for_selector("text=Stammgast Special", timeout=30000)
         page.wait_for_timeout(2000)
 
@@ -47,19 +47,22 @@ def check_tickets() -> None:
     text_lower = visible_text.lower()
     alerts = []
 
-    # Check 1: Offizieller Wiederverkauf-Bereich ist sichtbar
-    if "wiederverkauf" in text_lower:
-        alerts.append("Der Bereich 'Wiederverkauf' ist auf der Seite sichtbar!")
+    # Check 1: Offizieller Wiederverkauf / Resale sichtbar
+    if "wiederverkauf" in text_lower or "resale" in text_lower:
+        alerts.append("Der Bereich 'Wiederverkauf' / 'Resale' ist auf der Seite sichtbar!")
 
-    # Check 2: Eines der 5 Festivaltickets (Reduzini, Stammgast Special, Phase 1-3) ist nicht mehr 'AUSVERKAUFT'
+    # Check 2: Eines der 5 Festivaltickets ist nicht mehr ausverkauft
     start_idx = text_lower.find("reduzini")
     end_idx = text_lower.find("parken", start_idx) if start_idx != -1 else -1
 
     if start_idx != -1 and end_idx != -1:
         festival_section = text_lower[start_idx:end_idx]
-        sold_out_count = festival_section.count("ausverkauft")
-        print(f"Aktueller Status: {sold_out_count}/5 Festivaltickets 'AUSVERKAUFT'.")
+        sold_out_count = festival_section.count("ausverkauft") + festival_section.count("sold out")
+        print(f"Aktueller Status: {sold_out_count}/5 Festivaltickets ausverkauft.")
         if sold_out_count < 5:
+            print("--- GELESENER TEXTBLOCK ---")
+            print(festival_section)
+            print("---------------------------")
             alerts.append(
                 f"Mindestens ein Festivalticket ist nicht mehr ausverkauft ({sold_out_count}/5 ausverkauft)!"
             )
