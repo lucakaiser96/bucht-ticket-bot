@@ -49,24 +49,39 @@ def check_tickets() -> None:
         if "wiederverkauf" in text_lower or "resale" in text_lower:
             alerts.append("Der Bereich 'Wiederverkauf' / 'Resale' ist auf der Seite sichtbar!")
 
-        # Check 2: Prüfen, ob einer der ersten 5 '+'-Buttons (Festivaltickets) aktiv/klickbar ist
-        add_buttons = page.locator("button:has-text('add')")
-        total_buttons = add_buttons.count()
-        festival_buttons_to_check = min(5, total_buttons)
+        # Check 2: Alle '+'-Icons ('add') auf der Seite prüfen (unabhängig vom HTML-Tag)
+        add_states = page.evaluate("""
+            () => {
+                const icons = Array.from(document.querySelectorAll('*'))
+                    .filter(el => el.children.length === 0 && el.textContent.trim() === 'add');
+                return icons.map(icon => {
+                    const btn = icon.closest('button, [role="button"], a') || icon.parentElement;
+                    const style = window.getComputedStyle(btn);
+                    const disabled = Boolean(
+                        btn.disabled ||
+                        btn.getAttribute('aria-disabled') === 'true' ||
+                        btn.classList.contains('disabled') ||
+                        style.pointerEvents === 'none' ||
+                        parseFloat(style.opacity) < 0.9
+                    );
+                    return !disabled; // true = kaufbar
+                });
+            }
+        """)
 
-        available_count = 0
-        for i in range(festival_buttons_to_check):
-            if add_buttons.nth(i).is_enabled():
-                available_count += 1
+        festival_states = add_states[:5]
+        available_festival = sum(1 for x in festival_states if x)
+        parkticket_available = add_states[5] if len(add_states) > 5 else None
 
         print(
-            f"Aktueller Status: {available_count}/{festival_buttons_to_check} "
-            f"Festivaltickets kaufbar (gesamt {total_buttons} Plus-Buttons gefunden)."
+            f"Aktueller Status: {available_festival}/{len(festival_states)} "
+            f"Festivaltickets kaufbar (gesamt {len(add_states)} Plus-Icons gefunden, "
+            f"Parkticket-Test: {'kaufbar' if parkticket_available else 'nicht kaufbar'})."
         )
 
-        if available_count > 0:
+        if available_festival > 0:
             alerts.append(
-                f"Mindestens ein Festivalticket ist kaufbar ({available_count} aktive Plus-Buttons)!"
+                f"Mindestens ein Festivalticket ist kaufbar ({available_festival} aktive Plus-Buttons)!"
             )
 
         browser.close()
